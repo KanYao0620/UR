@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced JsPsych Reaction Time Experiment</title>
+    <script src="https://cdn.jsdelivr.net/npm/jspsych@6.3.1/jspsych.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jspsych@6.3.1/plugins/jspsych-html-keyboard-response.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/jspsych@6.3.1/css/jspsych.css">
+    <link rel="stylesheet" href="styles.css"> <!-- 引用外部CSS文件 -->
+</head>
+<body>
+    <script>
+        // 实验时间线
+        var timeline = [];
+
+        // 欢迎页面
+        var welcome = {
+            type: "html-keyboard-response",
+            stimulus: "<p>欢迎参加实验。</p><p>按任意键继续。</p>"
+        };
+        timeline.push(welcome);
+
+        // 指导页面
+        var instructions = {
+            type: "html-keyboard-response",
+            stimulus: "<p>在屏幕上会出现一个红色方块。</p><p>当方块变成其他颜色时，请尽快按下空格键。</p><p>按任意键开始。</p>"
+        };
+        timeline.push(instructions);
+
+        // 颜色数组
+        var colors = ['green', 'blue', 'yellow', 'purple', 'orange'];
+        
+        // 随机化颜色顺序
+        colors = jsPsych.randomization.shuffle(colors);
+
+        // 实验任务循环
+        for (var i = 0; i < colors.length; i++) {
+            var trial = {
+                type: "html-keyboard-response",
+                stimulus: function(){
+                    return "<div id='stimulus-container'><div class='stimulus' style='background-color:red;'></div></div>";
+                },
+                choices: jsPsych.NO_KEYS,
+                trial_duration: function(){
+                    return Math.floor(Math.random() * 2000) + 1000; // 随机1到3秒
+                },
+                on_finish: function(data){
+                    jsPsych.data.addDataToLastTrial({
+                        stimulus_onset: data.time_elapsed
+                    });
+                }
+            };
+            timeline.push(trial);
+
+            var response = {
+                type: "html-keyboard-response",
+                stimulus: function(){
+                    var color = jsPsych.timelineVariable('color');
+                    return "<div id='stimulus-container'><div class='stimulus' style='background-color:" + color + ";'></div></div>";
+                },
+                choices: [' '],
+                on_finish: function(data){
+                    var reaction_time = data.rt;
+                    jsPsych.data.addDataToLastTrial({
+                        reaction_time: reaction_time,
+                        correct: data.rt > 0 // 记录是否正确反应
+                    });
+                }
+            };
+            timeline.push({
+                timeline: [response],
+                timeline_variables: [{color: colors[i]}]
+            });
+
+            // 反馈页面
+            var feedback = {
+                type: "html-keyboard-response",
+                stimulus: function(){
+                    var last_trial_data = jsPsych.data.get().last(1).values()[0];
+                    return "<p>你的反应时间是：" + last_trial_data.reaction_time + "毫秒。</p><p>按任意键继续。</p>";
+                }
+            };
+            timeline.push(feedback);
+        }
+
+        // 总结页面
+        var summary = {
+            type: "html-keyboard-response",
+            stimulus: function(){
+                var trials = jsPsych.data.get().filter({correct: true});
+                var mean_rt = Math.round(trials.select('reaction_time').mean());
+                var std_rt = Math.round(trials.select('reaction_time').sd());
+                var error_rate = Math.round((1 - (trials.count() / colors.length)) * 100);
+                return "<p>实验结束。</p><p>平均反应时间：" + mean_rt + "毫秒。</p><p>反应时间标准差：" + std_rt + "毫秒。</p><p>错误率：" + error_rate + "%。</p><p>按任意键退出。</p>";
+            }
+        };
+        timeline.push(summary);
+
+        // 启动实验
+        jsPsych.init({
+            timeline: timeline
+        });
+    </script>
+</body>
+</html>
